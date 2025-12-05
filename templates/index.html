@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>Веб-форум</h1>
-            <p class="subtitle">Pair of anonymous imageboards</p>
+            <p class="subtitle">Pair of anonymous imageboards <span id="ws-status" class="ws-status"></span></p>
         </header>
 
         <div class="boards-list">
@@ -24,13 +24,13 @@
 
             <div class="boards-container" id="boards-container">
                 {{range .Boards}}
-                <div class="board-item" data-name="{{.Name}}" data-id="{{.ID}}" data-desc="{{.Description}}">
+                <div class="board-item" id="board-{{.ID}}" data-name="{{.Name}}" data-id="{{.ID}}" data-desc="{{.Description}}">
                     <h3><a href="/board/{{.ID}}">/{{.ID}}/ - {{.Name}}</a></h3>
                     <p>{{.Description}}</p>
                     <p class="stats">Тредов: {{.ThreadCount}}</p>
                 </div>
                 {{else}}
-                <p class="no-content">Пока нет досок. Создайте первую!</p>
+                <p class="no-content" id="no-boards">Пока нет досок. Создайте первую!</p>
                 {{end}}
             </div>
         </div>
@@ -47,18 +47,18 @@
                 <h2>Создать новую доску</h2>
                 <button class="modal-close" onclick="closeModal()">&times;</button>
             </div>
-            <form action="/api/board" method="POST">
+            <form action="/api/board" method="POST" id="create-board-form">
                 <div class="form-group">
                     <label>ID доски:</label>
-                    <input type="text" name="id" placeholder="Например: b, pr, tech" required pattern="[a-z0-9]+" title="Только латинские буквы и цифры">
+                    <input type="text" name="id" id="board-id" placeholder="Например: b, pr, tech" required pattern="[a-z0-9]+" title="Только латинские буквы и цифры">
                 </div>
                 <div class="form-group">
                     <label>Название:</label>
-                    <input type="text" name="name" placeholder="Random" required>
+                    <input type="text" name="name" id="board-name" placeholder="Random" required>
                 </div>
                 <div class="form-group">
                     <label>Описание:</label>
-                    <input type="text" name="description" placeholder="Pair of random topics">
+                    <input type="text" name="description" id="board-desc" placeholder="Pair of random topics">
                 </div>
                 <div class="form-buttons">
                     <button type="submit" class="btn">Создать доску</button>
@@ -69,6 +69,94 @@
     </div>
 
     <script>
+        let ws;
+        let reconnectInterval;
+
+        // Подключение к WebSocket для главной страницы
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/home';
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket подключен');
+                document.getElementById('ws-status').textContent = '🟢 Live';
+                document.getElementById('ws-status').style.color = '#117743';
+                if (reconnectInterval) {
+                    clearInterval(reconnectInterval);
+                    reconnectInterval = null;
+                }
+            };
+
+            ws.onmessage = function(event) {
+                const msg = JSON.parse(event.data);
+                console.log('Получено сообщение:', msg);
+
+                if (msg.type === 'new_board') {
+                    addNewBoard(msg.data);
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket отключен');
+                document.getElementById('ws-status').textContent = '🔴 Offline';
+                document.getElementById('ws-status').style.color = '#af0a0f';
+
+                if (!reconnectInterval) {
+                    reconnectInterval = setInterval(function() {
+                        console.log('Переподключение...');
+                        connectWebSocket();
+                    }, 3000);
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket ошибка:', error);
+            };
+        }
+
+        // Добавление новой доски
+        function addNewBoard(boardData) {
+            const container = document.getElementById('boards-container');
+
+            // Удаляем сообщение "нет досок"
+            const noBoards = document.getElementById('no-boards');
+            if (noBoards) {
+                noBoards.remove();
+            }
+
+            // Проверяем, нет ли уже этой доски
+            if (document.getElementById('board-' + boardData.id)) {
+                return;
+            }
+
+            const boardHtml = `
+                <div class="board-item new-board" id="board-${boardData.id}" data-name="${escapeHtml(boardData.name)}" data-id="${boardData.id}" data-desc="${escapeHtml(boardData.description || '')}">
+                    <h3><a href="/board/${boardData.id}">/${boardData.id}/ - ${escapeHtml(boardData.name)}</a></h3>
+                    <p>${escapeHtml(boardData.description || '')}</p>
+                    <p class="stats">Тредов: <span class="thread-count">0</span></p>
+                </div>`;
+
+            container.insertAdjacentHTML('afterbegin', boardHtml);
+
+            // Анимация
+            setTimeout(() => {
+                const newBoard = document.getElementById('board-' + boardData.id);
+                if (newBoard) {
+                    newBoard.classList.remove('new-board');
+                }
+            }, 2000);
+        }
+
+        // Экранирование HTML
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Поиск досок
         document.getElementById('board-search').addEventListener('input', function() {
             const query = this.value.toLowerCase();
@@ -106,6 +194,9 @@
                 closeModal();
             }
         });
+
+        // Запуск WebSocket
+        connectWebSocket();
     </script>
 </body>
 </html>

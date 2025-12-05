@@ -280,6 +280,16 @@ func (h *Handler) CreateBoardHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// WebSocket уведомление для главной страницы
+	WsHub.BroadcastToHome(WSMessage{
+		Type: "new_board",
+		Data: map[string]interface{}{
+			"id":          id,
+			"name":        name,
+			"description": description,
+		},
+	})
+
 	log.Printf("✓ Создана доска: /%s/ - %s", id, name)
 	http.Redirect(w, r, "/board/"+id, http.StatusSeeOther)
 }
@@ -340,12 +350,29 @@ func (h *Handler) CreateThreadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Создаём первый пост (OP)
-	_, err = database.CreatePost(int(threadID), nil, author, content, mediaPath, mediaType)
+	postID, err := database.CreatePost(int(threadID), nil, author, content, mediaPath, mediaType)
 	if err != nil {
 		log.Printf("Ошибка создания поста: %v", err)
 		http.Error(w, "Ошибка создания поста", http.StatusInternalServerError)
 		return
 	}
+
+	// WebSocket уведомление для доски
+	WsHub.BroadcastToBoard(boardID, WSMessage{
+		Type:     "new_thread",
+		ThreadID: int(threadID),
+		BoardID:  boardID,
+		Data: map[string]interface{}{
+			"id":         threadID,
+			"post_id":    postID,
+			"subject":    subject,
+			"author":     author,
+			"content":    content,
+			"media_path": mediaPath,
+			"media_type": mediaType,
+			"created_at": time.Now().Format("02.01.2006 15:04:05"),
+		},
+	})
 
 	log.Printf("✓ Создан тред #%d: %s", threadID, subject)
 	http.Redirect(w, r, "/thread/"+strconv.FormatInt(threadID, 10), http.StatusSeeOther)

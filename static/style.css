@@ -79,6 +79,52 @@ header h1 {
     }
 }
 
+/* Анимация новой доски */
+.new-board {
+    animation: newBoardHighlight 2s ease-out;
+}
+
+@keyframes newBoardHighlight {
+    0% {
+        background-color: #c8ffc8;
+        transform: scale(1.01);
+    }
+    100% {
+        background-color: #d6daf0;
+        transform: scale(1);
+    }
+}
+
+/* Анимация нового треда */
+.new-thread {
+    animation: newThreadHighlight 2s ease-out;
+}
+
+@keyframes newThreadHighlight {
+    0% {
+        background-color: #c8ffc8;
+        transform: scale(1.01);
+    }
+    100% {
+        background-color: #d6daf0;
+        transform: scale(1);
+    }
+}
+
+/* Анимация обновления треда */
+.thread-updated {
+    animation: threadUpdatedHighlight 2s ease-out;
+}
+
+@keyframes threadUpdatedHighlight {
+    0% {
+        background-color: #ffffc8;
+    }
+    100% {
+        background-color: #d6daf0;
+    }
+}
+
 /* Доски */
 .boards-list {
     margin-bottom: 20px;

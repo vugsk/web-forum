@@ -78,6 +78,22 @@ func main() {
 	// === WebSocket ===
 	mux.HandleFunc("/ws/thread", handlers.WebSocketThreadHandler)
 	mux.HandleFunc("/ws/board", handlers.WebSocketBoardHandler)
+	mux.HandleFunc("/ws/home", handlers.WebSocketHomeHandler)
+
+	// === REST API v1 для мобильных приложений ===
+	// Доски
+	mux.HandleFunc("/api/v1/boards", handlers.APIGetBoards)     // GET - список досок, POST - создать
+	mux.HandleFunc("/api/v1/boards/", handlers.APIBoardsRouter) // GET /api/v1/boards/{id} или /api/v1/boards/{id}/threads
+
+	// Треды
+	mux.HandleFunc("/api/v1/threads", handlers.APICreateThread) // POST - создать тред
+	mux.HandleFunc("/api/v1/threads/", handlers.APIGetThread)   // GET /api/v1/threads/{id}
+
+	// Посты
+	mux.HandleFunc("/api/v1/posts", handlers.APICreatePost) // POST - создать пост
+
+	// Загрузка медиа
+	mux.HandleFunc("/api/v1/upload", h.APIUploadMedia) // POST - загрузить файл
 
 	// Запуск сервера
 	port := getEnv("PORT", ":8080")
@@ -86,13 +102,25 @@ func main() {
 	}
 
 	log.Printf("Сервер запущен на http://localhost%s", port)
-	log.Println("Маршруты:")
+	log.Println("")
+	log.Println("=== WEB ===")
 	log.Println("  GET  /              - Главная страница")
 	log.Println("  GET  /board/{id}    - Страница доски")
 	log.Println("  GET  /thread/{id}   - Страница треда")
-	log.Println("  POST /api/board     - Создать доску")
-	log.Println("  POST /api/thread    - Создать тред")
-	log.Println("  POST /api/post      - Создать пост")
+	log.Println("")
+	log.Println("=== REST API v1 ===")
+	log.Println("  GET    /api/v1/boards              - Список досок")
+	log.Println("  POST   /api/v1/boards              - Создать доску")
+	log.Println("  GET    /api/v1/boards/{id}         - Получить доску")
+	log.Println("  GET    /api/v1/boards/{id}/threads - Получить треды доски")
+	log.Println("  GET    /api/v1/threads/{id}        - Получить тред с постами")
+	log.Println("  POST   /api/v1/threads             - Создать тред")
+	log.Println("  POST   /api/v1/posts               - Создать пост")
+	log.Println("  POST   /api/v1/upload              - Загрузить медиафайл")
+	log.Println("")
+	log.Println("=== WebSocket ===")
+	log.Println("  WS /ws/thread?thread_id={id}       - Live обновления треда")
+	log.Println("  WS /ws/board?board_id={id}         - Live обновления доски")
 
 	if err := http.ListenAndServe(port, mux); err != nil {
 		log.Fatal("Ошибка запуска сервера: ", err)

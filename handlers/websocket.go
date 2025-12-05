@@ -33,6 +33,8 @@ type Hub struct {
 	threadClients map[int]map[*websocket.Conn]bool
 	// Клиенты по доскам: board_id -> []*websocket.Conn
 	boardClients map[string]map[*websocket.Conn]bool
+	// Клиенты главной страницы
+	homeClients map[*websocket.Conn]bool
 	// Мьютекс для безопасного доступа
 	mu sync.RWMutex
 }
@@ -41,6 +43,7 @@ type Hub struct {
 var WsHub = &Hub{
 	threadClients: make(map[int]map[*websocket.Conn]bool),
 	boardClients:  make(map[string]map[*websocket.Conn]bool),
+	homeClients:   make(map[*websocket.Conn]bool),
 }
 
 // RegisterThreadClient регистрирует клиента для треда
@@ -86,6 +89,53 @@ func (h *Hub) UnregisterBoardClient(boardID string, conn *websocket.Conn) {
 	if h.boardClients[boardID] != nil {
 		delete(h.boardClients[boardID], conn)
 		log.Printf("WebSocket: клиент отключился от доски /%s/ (осталось: %d)", boardID, len(h.boardClients[boardID]))
+	}
+}
+
+// RegisterHomeClient регистрирует клиента для главной страницы
+func (h *Hub) RegisterHomeClient(conn *websocket.Conn) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.homeClients[conn] = true
+	log.Printf("WebSocket: клиент подключился к главной (всего: %d)", len(h.homeClients))
+}
+
+// UnregisterHomeClient удаляет клиента с главной страницы
+func (h *Hub) UnregisterHomeClient(conn *websocket.Conn) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	delete(h.homeClients, conn)
+	log.Printf("WebSocket: клиент отключился от главной (осталось: %d)", len(h.homeClients))
+}
+
+// BroadcastToHome отправляет сообщение всем клиентам главной страницы
+func (h *Hub) BroadcastToHome(msg WSMessage) {
+	h.mu.RLock()
+	clients := make(map[*websocket.Conn]bool)
+	for conn := range h.homeClients {
+		clients[conn] = true
+	}
+	h.mu.RUnlock()
+
+	if len(clients) == 0 {
+		return
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: ошибка сериализации: %v", err)
+		return
+	}
+
+	for conn := range clients {
+		err := conn.WriteMessage(websocket.TextMessage, data)
+		if err != nil {
+			log.Printf("WebSocket: ошибка отправки: %v", err)
+			conn.Close()
+			h.UnregisterHomeClient(conn)
+		}
 	}
 }
 
@@ -199,6 +249,32 @@ func WebSocketBoardHandler(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer func() {
 			WsHub.UnregisterBoardClient(boardID, conn)
+			conn.Close()
+		}()
+
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				break
+			}
+		}
+	}()
+}
+
+// WebSocketHomeHandler обрабатывает WebSocket соединения для главной страницы
+func WebSocketHomeHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade error: %v", err)
+		return
+	}
+
+	WsHub.RegisterHomeClient(conn)
+
+	// Читаем сообщения (для поддержания соединения)
+	go func() {
+		defer func() {
+			WsHub.UnregisterHomeClient(conn)
 			conn.Close()
 		}()
 
