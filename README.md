@@ -172,7 +172,4 @@ webForum/
 
 MIT License
 
-## Автор
-
-Ваше имя — [@your-username](https://github.com/your-username)
 
