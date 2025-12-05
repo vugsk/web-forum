@@ -10,6 +10,7 @@
     <div class="container">
         <div class="nav">
             [<a href="/">Главная</a>] [<a href="/board/{{.BoardID}}">/{{.BoardID}}/</a>] [<a href="#reply-form">Ответить</a>] [<a href="/thread/{{.ThreadID}}">Обновить</a>]
+            <span id="ws-status" class="ws-status"></span>
         </div>
 
         <header>
@@ -17,9 +18,9 @@
             <p class="subtitle">/{{.BoardID}}/</p>
         </header>
 
-        <div class="thread-posts">
+        <div class="thread-posts" id="thread-posts">
             {{range $index, $post := .Posts}}
-            <div class="post {{if eq $index 0}}op-post{{end}}" id="post-{{$post.ID}}" style="margin-left: {{multiply $post.Depth 20}}px;">
+            <div class="post {{if eq $index 0}}op-post{{end}}" id="post-{{$post.ID}}" style="margin-left: {{multiply $post.Depth 20}}px;" data-depth="{{$post.Depth}}">
                 <div class="post-header">
                     <span class="post-author">{{$post.Author}}</span>
                     <span class="post-date">{{formatTime $post.CreatedAt}}</span>
@@ -91,6 +92,144 @@
     </div>
 
     <script>
+        const threadID = {{.ThreadID}};
+        let ws;
+        let reconnectInterval;
+
+        // Подключение к WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host + '/ws/thread?thread_id=' + threadID;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('WebSocket подключен');
+                document.getElementById('ws-status').textContent = '🟢 Live';
+                document.getElementById('ws-status').style.color = '#117743';
+                if (reconnectInterval) {
+                    clearInterval(reconnectInterval);
+                    reconnectInterval = null;
+                }
+            };
+
+            ws.onmessage = function(event) {
+                const msg = JSON.parse(event.data);
+                console.log('Получено сообщение:', msg);
+
+                if (msg.type === 'new_post') {
+                    addNewPost(msg.data);
+                }
+            };
+
+            ws.onclose = function() {
+                console.log('WebSocket отключен');
+                document.getElementById('ws-status').textContent = '🔴 Offline';
+                document.getElementById('ws-status').style.color = '#af0a0f';
+
+                // Переподключение через 3 секунды
+                if (!reconnectInterval) {
+                    reconnectInterval = setInterval(function() {
+                        console.log('Переподключение...');
+                        connectWebSocket();
+                    }, 3000);
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('WebSocket ошибка:', error);
+            };
+        }
+
+        // Добавление нового поста на страницу
+        function addNewPost(postData) {
+            const postsContainer = document.getElementById('thread-posts');
+
+            // Проверяем, нет ли уже этого поста
+            if (document.getElementById('post-' + postData.id)) {
+                return;
+            }
+
+            // Вычисляем отступ
+            let depth = 0;
+            if (postData.parent_id > 0) {
+                const parentPost = document.getElementById('post-' + postData.parent_id);
+                if (parentPost) {
+                    depth = parseInt(parentPost.dataset.depth || 0) + 1;
+                }
+            }
+
+            // Создаём HTML поста
+            let mediaHtml = '';
+            if (postData.media_path) {
+                if (postData.media_type === 'image') {
+                    mediaHtml = `
+                        <div class="post-media">
+                            <a href="${postData.media_path}" target="_blank">
+                                <img src="${postData.media_path}" alt="Image" class="media-image">
+                            </a>
+                        </div>`;
+                } else if (postData.media_type === 'video') {
+                    mediaHtml = `
+                        <div class="post-media">
+                            <video controls class="media-video">
+                                <source src="${postData.media_path}">
+                            </video>
+                        </div>`;
+                } else if (postData.media_type === 'audio') {
+                    mediaHtml = `
+                        <div class="post-media">
+                            <audio controls class="media-audio">
+                                <source src="${postData.media_path}">
+                            </audio>
+                        </div>`;
+                }
+            }
+
+            let replyToHtml = '';
+            if (postData.parent_id > 0) {
+                replyToHtml = `<span class="reply-to">&gt;&gt;<a href="#post-${postData.parent_id}">${postData.parent_id}</a></span>`;
+            }
+
+            const postHtml = `
+                <div class="post new-post" id="post-${postData.id}" style="margin-left: ${depth * 20}px;" data-depth="${depth}">
+                    <div class="post-header">
+                        <span class="post-author">${escapeHtml(postData.author)}</span>
+                        <span class="post-date">${postData.created_at}</span>
+                        <span class="post-id">No.<a href="#post-${postData.id}">${postData.id}</a></span>
+                        ${replyToHtml}
+                        <button class="reply-btn" onclick="setReplyTo(${postData.id})">[Ответить]</button>
+                    </div>
+                    ${mediaHtml}
+                    <div class="post-content">
+                        <p>${escapeHtml(postData.content)}</p>
+                    </div>
+                </div>`;
+
+            // Добавляем пост
+            postsContainer.insertAdjacentHTML('beforeend', postHtml);
+
+            // Анимация появления
+            const newPost = document.getElementById('post-' + postData.id);
+            setTimeout(() => {
+                newPost.classList.remove('new-post');
+            }, 2000);
+
+            // Добавляем обработчик клика на номер поста
+            newPost.querySelector('.post-id a').addEventListener('click', function(e) {
+                if (e.ctrlKey || e.metaKey) return;
+                e.preventDefault();
+                setReplyTo(postData.id);
+            });
+        }
+
+        // Экранирование HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function setReplyTo(postId) {
             document.getElementById('parent_id').value = postId;
             document.getElementById('reply-to-id').textContent = '>>' + postId;
@@ -113,6 +252,9 @@
                 setReplyTo(postId);
             });
         });
+
+        // Запуск WebSocket при загрузке страницы
+        connectWebSocket();
     </script>
 </body>
 </html>
