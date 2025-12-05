@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Веб-форум</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Веб-форум</h1>
+            <p class="subtitle">Pair of anonymous imageboards</p>
+        </header>
+
+        <div class="boards-list">
+            <div class="boards-header">
+                <h2>Доски</h2>
+                <div class="boards-controls">
+                    <input type="text" id="board-search" placeholder="Поиск досок..." class="search-input">
+                    <button class="btn" onclick="openModal()">+ Создать доску</button>
+                </div>
+            </div>
+
+            <div class="boards-container" id="boards-container">
+                {{range .Boards}}
+                <div class="board-item" data-name="{{.Name}}" data-id="{{.ID}}" data-desc="{{.Description}}">
+                    <h3><a href="/board/{{.ID}}">/{{.ID}}/ - {{.Name}}</a></h3>
+                    <p>{{.Description}}</p>
+                    <p class="stats">Тредов: {{.ThreadCount}}</p>
+                </div>
+                {{else}}
+                <p class="no-content">Пока нет досок. Создайте первую!</p>
+                {{end}}
+            </div>
+        </div>
+
+        <footer>
+            <p>Веб-форум &copy; 2025</p>
+        </footer>
+    </div>
+
+    <!-- Модальное окно -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Создать новую доску</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <form action="/api/board" method="POST">
+                <div class="form-group">
+                    <label>ID доски:</label>
+                    <input type="text" name="id" placeholder="Например: b, pr, tech" required pattern="[a-z0-9]+" title="Только латинские буквы и цифры">
+                </div>
+                <div class="form-group">
+                    <label>Название:</label>
+                    <input type="text" name="name" placeholder="Random" required>
+                </div>
+                <div class="form-group">
+                    <label>Описание:</label>
+                    <input type="text" name="description" placeholder="Pair of random topics">
+                </div>
+                <div class="form-buttons">
+                    <button type="submit" class="btn">Создать доску</button>
+                    <button type="button" class="btn btn-cancel" onclick="closeModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Поиск досок
+        document.getElementById('board-search').addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const boards = document.querySelectorAll('.board-item');
+
+            boards.forEach(board => {
+                const name = board.dataset.name.toLowerCase();
+                const id = board.dataset.id.toLowerCase();
+                const desc = board.dataset.desc.toLowerCase();
+
+                if (name.includes(query) || id.includes(query) || desc.includes(query)) {
+                    board.style.display = 'block';
+                } else {
+                    board.style.display = 'none';
+                }
+            });
+        });
+
+        // Открыть модальное окно
+        function openModal() {
+            document.getElementById('modal-overlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Закрыть модальное окно
+        function closeModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('modal-overlay').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Закрытие по Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

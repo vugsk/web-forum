@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>/{{.Board.ID}}/ - {{.Board.Name}}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            [<a href="/">Главная</a>] [<a href="/board/{{.Board.ID}}">Обновить</a>]
+        </div>
+
+        <header>
+            <h1>/{{.Board.ID}}/ - {{.Board.Name}}</h1>
+            <p class="subtitle">{{.Board.Description}}</p>
+        </header>
+
+        <div class="sort-options">
+            <span>Сортировка:</span>
+            <a href="/board/{{.Board.ID}}?sort=bump" class="{{if eq .SortBy "bump"}}active{{end}}">По бампу</a>
+            <a href="/board/{{.Board.ID}}?sort=new" class="{{if eq .SortBy "new"}}active{{end}}">Новые</a>
+            <a href="/board/{{.Board.ID}}?sort=old" class="{{if eq .SortBy "old"}}active{{end}}">Старые</a>
+            <a href="/board/{{.Board.ID}}?sort=replies" class="{{if eq .SortBy "replies"}}active{{end}}">По ответам</a>
+        </div>
+
+        <div class="new-thread-form">
+            <h2>Создать тред</h2>
+            <form action="/api/thread" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="board_id" value="{{.Board.ID}}">
+                <div class="form-group">
+                    <label>Тема:</label>
+                    <input type="text" name="subject" placeholder="Тема треда" required>
+                </div>
+                <div class="form-group">
+                    <label>Имя:</label>
+                    <input type="text" name="author" placeholder="Аноним">
+                </div>
+                <div class="form-group">
+                    <label>Комментарий:</label>
+                    <textarea name="content" placeholder="Текст сообщения..." required rows="5"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Файл:</label>
+                    <input type="file" name="media" accept="image/*,video/*,audio/*">
+                    <span class="file-hint">Макс. 100MB. Форматы: JPG, PNG, GIF, WEBM, MP4, MP3</span>
+                </div>
+                <button type="submit" class="btn">Создать тред</button>
+            </form>
+        </div>
+
+        <div class="threads-list">
+            <h2>Треды</h2>
+            {{if .Threads}}
+                {{range .Threads}}
+                <div class="thread-preview">
+                    <div class="thread-header">
+                        <strong>{{.Subject}}</strong>
+                        <span class="thread-info">
+                            Создан: {{formatTime .CreatedAt}} | Ответов: {{.PostCount}} | Бамп: {{formatTime .BumpedAt}}
+                        </span>
+                    </div>
+
+                    {{if .FirstPost}}
+                    <div class="post-preview">
+                        {{if .FirstPost.MediaPath.Valid}}
+                        <div class="post-media-preview">
+                            {{if eq (nullStr .FirstPost.MediaType) "image"}}
+                            <a href="{{nullStr .FirstPost.MediaPath}}" target="_blank">
+                                <img src="{{nullStr .FirstPost.MediaPath}}" alt="Image">
+                            </a>
+                            {{else if eq (nullStr .FirstPost.MediaType) "video"}}
+                            <div class="media-icon">🎬</div>
+                            {{else if eq (nullStr .FirstPost.MediaType) "audio"}}
+                            <div class="media-icon">🎵</div>
+                            {{end}}
+                        </div>
+                        {{end}}
+                        <div class="post-content">
+                            <div class="post-header">
+                                <span class="post-author">{{.FirstPost.Author}}</span>
+                                <span class="post-date">{{formatTime .FirstPost.CreatedAt}}</span>
+                                <span class="post-id">No.<a href="/thread/{{.ID}}#post-{{.FirstPost.ID}}">{{.FirstPost.ID}}</a></span>
+                            </div>
+                            <p>{{truncate .FirstPost.Content 300}}</p>
+                        </div>
+                    </div>
+                    {{end}}
+
+                    <div class="thread-actions">
+                        <a href="/thread/{{.ID}}" class="btn-link">[Открыть тред]</a>
+                        <a href="/thread/{{.ID}}#reply-form" class="btn-link">[Ответить]</a>
+                    </div>
+                </div>
+                {{end}}
+            {{else}}
+                <p class="no-content">Нет тредов. Создайте первый!</p>
+            {{end}}
+        </div>
+
+        <footer>
+            [<a href="/">Главная</a>] [<a href="/board/{{.Board.ID}}">Наверх</a>]
+        </footer>
+    </div>
+</body>
+</html>

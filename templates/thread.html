@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - /{{.BoardID}}/</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            [<a href="/">Главная</a>] [<a href="/board/{{.BoardID}}">/{{.BoardID}}/</a>] [<a href="#reply-form">Ответить</a>] [<a href="/thread/{{.ThreadID}}">Обновить</a>]
+        </div>
+
+        <header>
+            <h1>{{.Title}}</h1>
+            <p class="subtitle">/{{.BoardID}}/</p>
+        </header>
+
+        <div class="thread-posts">
+            {{range $index, $post := .Posts}}
+            <div class="post {{if eq $index 0}}op-post{{end}}" id="post-{{$post.ID}}" style="margin-left: {{multiply $post.Depth 20}}px;">
+                <div class="post-header">
+                    <span class="post-author">{{$post.Author}}</span>
+                    <span class="post-date">{{formatTime $post.CreatedAt}}</span>
+                    <span class="post-id">No.<a href="#post-{{$post.ID}}">{{$post.ID}}</a></span>
+                    {{if $post.ParentID.Valid}}
+                    <span class="reply-to">&gt;&gt;<a href="#post-{{nullInt $post.ParentID}}">{{nullInt $post.ParentID}}</a></span>
+                    {{end}}
+                    <button class="reply-btn" onclick="setReplyTo({{$post.ID}})">[Ответить]</button>
+                </div>
+
+                {{if $post.MediaPath.Valid}}
+                <div class="post-media">
+                    {{if eq (nullStr $post.MediaType) "image"}}
+                    <a href="{{nullStr $post.MediaPath}}" target="_blank">
+                        <img src="{{nullStr $post.MediaPath}}" alt="Image" class="media-image">
+                    </a>
+                    {{else if eq (nullStr $post.MediaType) "video"}}
+                    <video controls class="media-video">
+                        <source src="{{nullStr $post.MediaPath}}">
+                        Ваш браузер не поддерживает видео.
+                    </video>
+                    {{else if eq (nullStr $post.MediaType) "audio"}}
+                    <audio controls class="media-audio">
+                        <source src="{{nullStr $post.MediaPath}}">
+                        Ваш браузер не поддерживает аудио.
+                    </audio>
+                    {{end}}
+                </div>
+                {{end}}
+
+                <div class="post-content">
+                    <p>{{$post.Content}}</p>
+                </div>
+            </div>
+            {{end}}
+        </div>
+
+        <div class="reply-form" id="reply-form">
+            <h2>Ответить в тред</h2>
+            <form action="/api/post" method="POST" enctype="multipart/form-data" id="post-form">
+                <input type="hidden" name="thread_id" value="{{.ThreadID}}">
+                <input type="hidden" name="parent_id" id="parent_id" value="0">
+
+                <div class="form-group reply-info" id="reply-info" style="display: none;">
+                    <span>Ответ на пост: <strong id="reply-to-id"></strong></span>
+                    <button type="button" onclick="clearReply()">[X]</button>
+                </div>
+
+                <div class="form-group">
+                    <label>Имя:</label>
+                    <input type="text" name="author" placeholder="Аноним">
+                </div>
+                <div class="form-group">
+                    <label>Комментарий:</label>
+                    <textarea name="content" placeholder="Текст сообщения..." required rows="5"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Файл:</label>
+                    <input type="file" name="media" accept="image/*,video/*,audio/*">
+                    <span class="file-hint">Макс. 100MB. Форматы: JPG, PNG, GIF, WEBM, MP4, MP3</span>
+                </div>
+                <button type="submit" class="btn">Отправить</button>
+            </form>
+        </div>
+
+        <footer>
+            [<a href="/">Главная</a>] [<a href="/board/{{.BoardID}}">/{{.BoardID}}/</a>] [<a href="#">Наверх</a>]
+        </footer>
+    </div>
+
+    <script>
+        function setReplyTo(postId) {
+            document.getElementById('parent_id').value = postId;
+            document.getElementById('reply-to-id').textContent = '>>' + postId;
+            document.getElementById('reply-info').style.display = 'flex';
+            document.getElementById('reply-form').scrollIntoView({ behavior: 'smooth' });
+            document.querySelector('textarea[name="content"]').focus();
+        }
+
+        function clearReply() {
+            document.getElementById('parent_id').value = '0';
+            document.getElementById('reply-info').style.display = 'none';
+        }
+
+        // Клик по номеру поста
+        document.querySelectorAll('.post-id a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                if (e.ctrlKey || e.metaKey) return;
+                e.preventDefault();
+                const postId = this.textContent;
+                setReplyTo(postId);
+            });
+        });
+    </script>
+</body>
+</html>
